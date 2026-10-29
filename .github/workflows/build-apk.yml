@@ -10,6 +10,24 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Cari folder proyek
+        run: |
+          CFG=$(find . -name capacitor.config.json -not -path '*/node_modules/*' | head -1)
+          if [ -z "$CFG" ]; then
+            ZIP=$(find . -maxdepth 3 -name '*.zip' | head -1)
+            if [ -n "$ZIP" ]; then
+              unzip -oq "$ZIP" -d _unzipped
+              CFG=$(find _unzipped -name capacitor.config.json | head -1)
+            fi
+          fi
+          if [ -z "$CFG" ]; then
+            echo "capacitor.config.json tidak ditemukan. Isi repository:"
+            find . -path ./.git -prune -o -type f -print | head -50
+            exit 1
+          fi
+          echo "APP_DIR=$(dirname "$CFG")" >> "$GITHUB_ENV"
+          echo "Folder proyek: $(dirname "$CFG")"
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
@@ -20,15 +38,19 @@ jobs:
           java-version: 21
 
       - name: Install dependencies
+        working-directory: ${{ env.APP_DIR }}
         run: npm install
 
       - name: Add Android platform
+        working-directory: ${{ env.APP_DIR }}
         run: npx cap add android
 
       - name: Sync web assets
+        working-directory: ${{ env.APP_DIR }}
         run: npx cap sync android
 
       - name: Build debug APK
+        working-directory: ${{ env.APP_DIR }}
         run: |
           cd android
           chmod +x gradlew
@@ -38,4 +60,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: MiniGames-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: ${{ env.APP_DIR }}/android/app/build/outputs/apk/debug/app-debug.apk
